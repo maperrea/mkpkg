@@ -3,13 +3,16 @@
 help() {
 	echo \
 "
-usage: mkpkg [options] [payload] [pkg]
+mkpkg [options ...] [payload-dir] [pkg]
 
-Small utility tool to make macos packages, without using proprietary software.
+Small utility tool to make macos packages from any directory.
+The package installs the files starting from the base location, conserving the file structure inside the payload directory.
 
 requirements:
 	xar
 	realpath
+	mkbom
+	lsbom
 
 available options:
 
@@ -30,11 +33,11 @@ available options:
 		default: /
 	
 	--preinstall [script]
-		provide a script which will be launched by the installer before installation.
+		provide a shell script which will be launched by the installer before installation.
 		should not be included in the payload.
 
 	--postinstall [script]
-		provide a script which will be launched by the installer after installation.
+		provide a shell script which will be launched by the installer after installation.
 		should not be included in the payload.
 "
 }
@@ -101,9 +104,8 @@ done
 
 set -- $PARAMETERS
 
-#TODO change message
 if [ "$#" -lt 2 ]; then
-	echo "error: not enough arguments (needs at least 2)"
+	help
 	exit 1
 fi
 
