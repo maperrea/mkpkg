@@ -1,0 +1,172 @@
+#!/bin/sh
+
+help() {
+	echo \
+"
+usage: mkpkg [options] [payload] [pkg]
+
+Small utility tool to make macos packages, without using proprietary software.
+
+requirements:
+	xar
+	realpath
+
+available options:
+
+	-h, --help
+		print the help and exit
+
+	-i, --id, --identifier [name]
+		set the identifier for the package
+		default: package name
+		
+	-a, -auth [auth]
+		set the required auth level.
+		can be one of: none, root
+		default: none
+
+	-l, --location [path]
+		set the starting path from which the files will be installed, conserving the file structure inside the payload.
+		default: /
+	
+	--preinstall [script]
+		provide a script which will be launched by the installer before installation.
+		should not be included in the payload.
+
+	--postinstall [script]
+		provide a script which will be launched by the installer after installation.
+		should not be included in the payload.
+"
+}
+
+is_missing() {
+	case "$2" in
+		-* | "")
+			echo "$1: missing parameter"
+			exit 1
+			;;
+	esac
+}
+
+PARAMETERS=""
+
+location="/"
+auth="none"
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-h | --help)
+			help
+			exit 0
+			;;
+		-i | --id | --identifier)
+			is_missing "$1" "$2"
+			identifier=$2
+			shift 2
+			;;
+		-a | --auth)
+			is_missing "$1" "$2"
+			if [ $2 != "none" ] && [ $2 != "root" ]; then
+				echo "$1: $2: invalid parameter, please enter one of: root, none"
+				exit 1
+			fi
+			auth=$2
+			shift 2
+			;;
+		-l | --location)
+			is_missing "$1" "$2"
+			location=$2
+			shift 2
+			;;
+		--preinstall)
+			is_missing "$1" "$2"
+			preinstall="$(realpath $2)"
+			shift 2
+			;;
+		--postinstall)
+			is_missing "$1" "$2"
+			postinstall="$(realpath $2)"
+			shift 2
+			;;
+		-*)
+			echo "error: Unknown parameter '$1'"
+			exit 1
+			;;
+		*)
+			PARAMETERS+=" $1"
+			shift
+			;;
+	esac
+done
+
+set -- $PARAMETERS
+
+#TODO change message
+if [ "$#" -lt 2 ]; then
+	echo "error: not enough arguments (needs at least 2)"
+	exit 1
+fi
+
+files="$1"
+
+if [ ! -d "$files" ]; then
+	echo "error: '$files' doesn't exit or is not a directory"
+	exit 1
+fi
+
+tmp="/tmp/$1_pkg_tmp"
+name="$(basename $2)"
+if [ -z $identifier ]; then
+	identifier=$name
+fi
+package="$(realpath $2)"
+
+if [ -f "$package" ]; then
+	while true; do
+		echo "Warning: '$package' already exists. Do you wish to overwrite it? [y/n]: \c"
+		read yn
+		case $yn in
+			Y | y)
+				break;;
+			N | n)
+				exit;;
+		esac
+	done
+fi
+	
+cd "$files"
+
+weight=$(du -sk . | cut -f1 -w -)
+
+rm -rf "$tmp"
+mkdir "$tmp"
+
+mkbom . "$tmp/Bom"
+
+find ./ | cpio -o 2>/dev/null | gzip -c >"$tmp/Payload"
+
+cd "$tmp"
+
+if [ -n "$preinstall" ] || [ -n "$postinstall"]; then
+	mkdir scripts_dir
+	cp $preinstall $postinstall scripts_dir
+	cd scripts_dir
+	find ./* | cpio -o | gzip -c >"../Scripts"
+	cd ..
+	rm -rf scripts_dir
+fi
+
+nfiles=$(lsbom Bom | wc -l | cut -w -f2 -)
+
+echo > PackageInfo \
+"<pkg-info format-version=\"2\" identifier=\"$identifier\" auth=\"$auth\" version=\"1\" install-location=\"$location\">
+<payload installKBytes=\"$weight\" numberOfFiles=\"$nfiles\"/>
+</pkg-info>"
+
+xar -j --no-compress "Payload" --no-compress "Scripts" -c * -f "$package"
+
+rm -rf "$tmp"
+
+echo "Made package '$name'"
+
+exit 0
