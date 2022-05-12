@@ -1,0 +1,36 @@
+mkpkg [options ...] [payload-dir] [pkg]
+
+Small utility tool to make macos packages from any directory.
+The package installs the files starting from the base location, conserving the file structure inside the payload directory.
+
+requirements:
+	xar
+	realpath
+	mkbom
+	lsbom
+
+available options:
+
+	-h, --help
+		print the help and exit
+
+	-i, --id, --identifier [name]
+		set the identifier for the package
+		default: package name
+		
+	-a, -auth [auth]
+		set the required auth level.
+		can be one of: none, root
+		default: none
+
+	-l, --location [path]
+		set the starting path from which the files will be installed, conserving the file structure inside the payload.
+		default: /
+	
+	--preinstall [script]
+		provide a shell script which will be launched by the installer before installation.
+		should not be included in the payload.
+
+	--postinstall [script]
+		provide a shell script which will be launched by the installer after installation.
+		should not be included in the payload.
