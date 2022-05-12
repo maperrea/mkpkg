@@ -2,6 +2,7 @@ mkpkg [options ...] [payload-dir] [pkg]
 
 Small utility tool to make macos packages from any directory.
 The package installs the files starting from the base location, conserving the file structure inside the payload directory.
+does not use pkgutil/pkgbuild/productbuild/...
 
 requirements:
 	xar
